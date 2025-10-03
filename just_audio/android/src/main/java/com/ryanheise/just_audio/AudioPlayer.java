@@ -34,6 +34,11 @@ import androidx.media3.common.Metadata;
 import androidx.media3.exoplayer.metadata.MetadataOutput;
 import androidx.media3.extractor.metadata.icy.IcyHeaders;
 import androidx.media3.extractor.metadata.icy.IcyInfo;
+
+import androidx.media3.extractor.metadata.id3.TextInformationFrame;
+import androidx.media3.extractor.metadata.id3.TxxxFrame;
+import androidx.media3.extractor.metadata.id3.PrivFrame;
+
 import androidx.media3.exoplayer.source.ClippingMediaSource; // Deprecated
 // For some reason, this import triggers the [deprecation] warning, despite the
 // warnings being suppressed at each use.
@@ -81,6 +86,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private final MethodChannel methodChannel;
     private final BetterEventChannel eventChannel;
     private final BetterEventChannel dataEventChannel;
+    private final BetterEventChannel metadataEventChannel;
 
     private ProcessingState processingState;
     private long updatePosition;
@@ -176,6 +182,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         methodChannel.setMethodCallHandler(this);
         eventChannel = new BetterEventChannel(messenger, "com.ryanheise.just_audio.events." + id);
         dataEventChannel = new BetterEventChannel(messenger, "com.ryanheise.just_audio.data." + id);
+        metadataEventChannel = new BetterEventChannel(messenger,"com.youradio.timed_metadata." + id);
+        
         processingState = ProcessingState.idle;
         if (audioLoadConfiguration != null) {
             Map<?, ?> loadControlMap = (Map<?, ?>)audioLoadConfiguration.get("androidLoadControl");
@@ -248,6 +256,41 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             if (entry instanceof IcyInfo) {
                 icyInfo = (IcyInfo) entry;
                 broadcastImmediatePlaybackEvent();
+            }
+        }
+
+        // NEW: forward timed metadata (ID3 / emsg) to Dart
+        for (int i = 0; i < metadata.length(); i++) {
+            final Metadata.Entry e = metadata.get(i);
+    
+            if (e instanceof TextInformationFrame) {
+                final TextInformationFrame f = (TextInformationFrame) e; // e.g., TIT2 (title), TPE1 (artist)
+                metadataEventChannel.success(mapOf(
+                    "type", "id3",
+                    "id",   f.id,
+                    "value", f.value
+                ));
+            } else if (e instanceof TxxxFrame) {
+                final TxxxFrame f = (TxxxFrame) e; // often "StreamTitle"
+                metadataEventChannel.success(mapOf(
+                    "type", "id3-txxx",
+                    "description", f.description,
+                    "value", f.value
+                ));
+            } else if (e instanceof PrivFrame) {
+                final PrivFrame f = (PrivFrame) e;
+                // You can surface PRIV as needed; often not required
+                metadataEventChannel.success(mapOf(
+                    "type", "id3-priv",
+                    "owner", f.owner
+                ));
+            } else if (e instanceof EventMessage) {
+                final EventMessage f = (EventMessage) e; // DASH emsg
+                metadataEventChannel.success(mapOf(
+                    "type", "emsg",
+                    "scheme", f.schemeIdUri,
+                    "value", f.value
+                ));
             }
         }
     }
@@ -800,6 +843,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             );
             setAudioSessionId(player.getAudioSessionId());
             player.addListener(this);
+            player.addMetadataOutput(this);
         }
     }
 
@@ -1064,6 +1108,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         }
         eventChannel.endOfStream();
         dataEventChannel.endOfStream();
+        metadataEventChannel.endOfStream();
     }
 
     private void abortSeek() {
