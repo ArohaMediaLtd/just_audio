@@ -21,6 +21,7 @@
     FlutterMethodChannel *_methodChannel;
     BetterEventChannel *_eventChannel;
     BetterEventChannel *_dataEventChannel;
+    BetterEventChannel *_metadataEventChannel;
     NSString *_playerId;
     AVQueuePlayer *_player;
     AudioSource *_audioSource;
@@ -70,6 +71,11 @@
     _dataEventChannel = [[BetterEventChannel alloc]
         initWithName:[NSMutableString stringWithFormat:@"com.ryanheise.just_audio.data.%@", _playerId]
            messenger:[registrar messenger]];
+
+    _metadataEventChannel = [[BetterEventChannel alloc]
+        initWithName:[NSMutableString stringWithFormat:@"com.youradio.timed_metadata.%@", _playerId]
+           messenger:[registrar messenger]];
+       
     _index = 0;
     _processingState = psIdle;
     _loopMode = lmLoopOff;
@@ -430,15 +436,20 @@
     [playerItem addOutput:metadataOutput];
 }
 
-- (void)metadataOutput:(AVPlayerItemMetadataOutput *)output didOutputTimedMetadataGroups:(NSArray<AVTimedMetadataGroup *> *)groups fromPlayerItemTrack:(AVPlayerItemTrack *)track {
-    // ICY headers aren't available here. Maybe do this in the proxy.
+- (void)metadataOutput:(AVPlayerItemMetadataOutput *)output
+didOutputTimedMetadataGroups:(NSArray<AVTimedMetadataGroup *> *)groups
+     fromPlayerItemTrack:(AVPlayerItemTrack *)track {
+
+    // ----- Existing ICY handling (keep) -----
     BOOL hasIcyData = NO;
     NSString *title = (NSString *)[NSNull null];
     NSString *url = (NSString *)[NSNull null];
-    for (int i = 0; i < groups.count; i++) {
-        AVTimedMetadataGroup *group = groups[i];
-        for (int j = 0; j < group.items.count; j++) {
-            AVMetadataItem *item = group.items[j];
+
+    // We'll also emit ID3 here:
+    for (AVTimedMetadataGroup *group in groups) {
+        for (AVMetadataItem *item in group.items) {
+
+            // 1) ICY (as you already had)
             if ([@"icy/StreamTitle" isEqualToString:item.identifier]) {
                 hasIcyData = YES;
                 title = (NSString *)item.value;
@@ -446,18 +457,90 @@
                 hasIcyData = YES;
                 url = (NSString *)item.value;
             }
+
+            // 2) ID3 variants commonly seen in HLS MP3
+            // Identifiers often look like: "id3/TIT2", "id3/TPE1", "id3/TXXX"
+            else if ([item.identifier hasPrefix:@"id3/"]) {
+                NSString *id3Id = [item.identifier substringFromIndex:4]; // e.g. "TIT2"
+                NSString *val = item.stringValue ?: (NSString *)item.value;
+
+                if ([id3Id isEqualToString:@"TIT2"] && val) {
+                    // Title
+                    [_metadataEventChannel sendEvent:@{
+                        @"type": @"id3",
+                        @"id": @"TIT2",
+                        @"value": val
+                    }];
+                }
+                else if ([id3Id isEqualToString:@"TPE1"] && val) {
+                    // Artist
+                    [_metadataEventChannel sendEvent:@{
+                        @"type": @"id3",
+                        @"id": @"TPE1",
+                        @"value": val
+                    }];
+                }
+                else if ([id3Id isEqualToString:@"TXXX"]) {
+                    // Custom user text (often "StreamTitle": "Artist - Title")
+                    // AVFoundation exposes the "description"/"info" via extraAttributes.
+                    NSString *desc = nil;
+                    if (@available(iOS 11.0, *)) {
+                        // key is AVMetadataExtraAttributeInfoKey; to avoid importing the symbol, get via string
+                        id info = item.extraAttributes[@"info"] ?: item.extraAttributes[@"desc"] ?: item.extraAttributes[@"description"];
+                        if ([info isKindOfClass:[NSString class]]) desc = (NSString *)info;
+                    }
+                    if (val) {
+                        [_metadataEventChannel sendEvent:@{
+                            @"type": @"id3-txxx",
+                            @"description": desc ?: @"",
+                            @"value": val
+                        }];
+                    }
+                }
+                else if ([id3Id isEqualToString:@"PRIV"]) {
+                    // Vendor/private data — usually not needed for now-playing, but we can signal it
+                    NSString *owner = item.stringValue ?: @"";
+                    [_metadataEventChannel sendEvent:@{
+                        @"type": @"id3-priv",
+                        @"owner": owner
+                    }];
+                }
+            }
+
+            // 3) Common keys (fallback): AVFoundation may also surface
+            // AVMetadataCommonKeyTitle / Artist via "common/..." identifiers or commonKey.
+            else if (item.commonKey != nil) {
+                NSString *common = (NSString *)item.commonKey;
+                NSString *val = item.stringValue ?: (NSString *)item.value;
+                if ([common isEqualToString:AVMetadataCommonKeyTitle] && val) {
+                    [_metadataEventChannel sendEvent:@{
+                        @"type": @"id3",
+                        @"id": @"TIT2",
+                        @"value": val
+                    }];
+                } else if ([common isEqualToString:AVMetadataCommonKeyArtist] && val) {
+                    [_metadataEventChannel sendEvent:@{
+                        @"type": @"id3",
+                        @"id": @"TPE1",
+                        @"value": val
+                    }];
+                }
+            }
         }
     }
+
+    // Keep your original ICY -> playbackEvent (for backwards-compat)
     if (hasIcyData) {
         _icyMetadata = @{
             @"info": @{
-                @"title": title,
-                @"url": url,
+                @"title": title ?: (id)[NSNull null],
+                @"url":   url ?: (id)[NSNull null],
             },
         };
         [self broadcastPlaybackEvent];
     }
 }
+
 
 - (NSMutableArray<AudioSource *> *)decodeAudioSources:(NSArray *)data {
     NSMutableArray<AudioSource *> *array = (NSMutableArray<AudioSource *> *)[[NSMutableArray alloc] init];
@@ -1385,6 +1468,7 @@
     // Untested:
     [_eventChannel dispose];
     [_dataEventChannel dispose];
+    [_metadataEventChannel dispose];
     [_methodChannel setMethodCallHandler:nil];
 }
 
