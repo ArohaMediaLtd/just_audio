@@ -636,6 +636,10 @@ class AudioPlayer {
   Stream<int?> get androidAudioSessionIdStream =>
       _androidAudioSessionIdSubject.stream;
 
+  // Timed metadata (ID3 / emsg)
+  EventChannel? _timedMetadataChannel;
+  Stream<Map<String, dynamic>>? _timedMetadataStream;
+
   /// A stream of errors broadcast by the player.
   Stream<PlayerException> get errorStream => _errorSubject.stream;
 
@@ -680,6 +684,22 @@ class AudioPlayer {
     } else {
       return playbackEvent.updatePosition;
     }
+  }
+
+  /// Emits maps like:
+  /// {"type":"id3","id":"TIT2","value":"Song Title"}
+  /// {"type":"id3","id":"TPE1","value":"Artist"}
+  /// {"type":"id3-txxx","description":"StreamTitle","value":"Artist - Title"}
+  /// {"type":"emsg","scheme":"…","value":"…"}  // (if you ever use DASH)
+  Stream<Map<String, dynamic>> get timedMetadataStream {
+    // Each player instance has its own ID. If the platform re-initialises,
+    // _id changes; we rebuild the channel lazily on next access.
+    _timedMetadataChannel ??=
+        EventChannel('com.youradio.timed_metadata.$_id');
+    _timedMetadataStream ??= _timedMetadataChannel!
+        .receiveBroadcastStream()
+        .map((e) => Map<String, dynamic>.from(e as Map));
+    return _timedMetadataStream!;
   }
 
   /// A stream tracking the current position of this player, suitable for
