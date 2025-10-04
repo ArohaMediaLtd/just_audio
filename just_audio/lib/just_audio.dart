@@ -1479,7 +1479,6 @@ class AudioPlayer {
       await _currentIndexSubject.close();
       await _loopModeSubject.close();
       await _shuffleModeEnabledSubject.close();
-      await _shuffleModeEnabledSubject.close();
     });
   }
 
@@ -1650,37 +1649,45 @@ class AudioPlayer {
             await _disposePlatform(oldPlatform);
           }
         }
-        // During initialisation, we must only use this platform reference in case
-        // _platform is updated again during initialisation.
-        final platform = active && !_disposed
-            ? await (_nativePlatform = _pluginPlatform.init(InitRequest(
-                id: _id = _generateId(),
-                audioLoadConfiguration: _audioLoadConfiguration?._toMessage(),
-                androidAudioEffects: (_isAndroid() || _isUnitTest())
-                    ? _audioPipeline.androidAudioEffects
-                        .map((audioEffect) => audioEffect._toMessage())
-                        .toList()
-                    : [],
-                darwinAudioEffects: (_isDarwin() || _isUnitTest())
-                    ? _audioPipeline.darwinAudioEffects
-                        .map((audioEffect) => audioEffect._toMessage())
-                        .toList()
-                    : [],
-                androidOffloadSchedulingEnabled:
-                    _androidOffloadSchedulingEnabled,
-                androidAudioOffloadPreferences:
-                    _androidAudioOffloadPreferences?._toMessage(),
-                useLazyPreparation: _playlist.useLazyPreparation,
-              )))
-            : (_idlePlatform = _IdleAudioPlayer(
-                id: _id = _generateId(),
-                sequenceStream: sequenceStream,
-                errorCode: playbackEvent.errorCode,
-                errorMessage: playbackEvent.errorMessage,
-              ));
+        
+        // Generate a new per-player id before (re)initialising the platform.
+        final newId = _generateId();
+        _id = newId;
+        
+          // Recreate timed-metadata channel on next access after _id changes.
+          _timedMetadataChannel = null;
+          _timedMetadataStream  = null;
+          
+          final nativePlatform = active && !_disposed
+              ? await (_nativePlatform = _pluginPlatform.init(InitRequest(
+                  id: newId,
+                  audioLoadConfiguration: _audioLoadConfiguration?._toMessage(),
+                  androidAudioEffects: (_isAndroid() || _isUnitTest())
+                      ? _audioPipeline.androidAudioEffects
+                          .map((e) => e._toMessage())
+                          .toList()
+                      : [],
+                  darwinAudioEffects: (_isDarwin() || _isUnitTest())
+                      ? _audioPipeline.darwinAudioEffects
+                          .map((e) => e._toMessage())
+                          .toList()
+                      : [],
+                  androidOffloadSchedulingEnabled: _androidOffloadSchedulingEnabled,
+                  androidAudioOffloadPreferences:
+                      _androidAudioOffloadPreferences?._toMessage(),
+                  useLazyPreparation: _playlist.useLazyPreparation,
+                )))
+              : (_idlePlatform = _IdleAudioPlayer(
+                  id: newId,
+                  sequenceStream: sequenceStream,
+                  errorCode: playbackEvent.errorCode,
+                  errorMessage: playbackEvent.errorMessage,
+                ));
 
-        _platformValue = platform;
-        return platform;
+        
+
+        _platformValue = nativePlatform;
+        return nativePlatform;
       });
       if (checkInterruption() || _disposed) return inactiveResult(platform);
 
