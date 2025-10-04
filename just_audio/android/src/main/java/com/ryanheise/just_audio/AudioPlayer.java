@@ -247,6 +247,17 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         setAudioSessionId(audioSessionId);
         broadcastPendingPlaybackEvent();
     }
+    
+    private void emitTimedMetadata(final Map<String, Object> map) {
+        // Ensure we call Flutter channels on the main looper
+        handler.post(() -> {
+        try {
+            metadataEventChannel.success(map);
+        } catch (Exception e) {
+            Log.e(TAG, "emitTimedMetadata failed", e);
+        }
+      });
+    }
 
     @Override
     public void onMetadata(Metadata metadata) {
@@ -258,55 +269,36 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
             }
         }
 
-        // NEW: forward timed metadata (ID3 / emsg) to Dart
-        for (int i = 0; i < metadata.length(); i++) {
-        final Metadata.Entry entry = metadata.get(i);
-    
-        if (entry instanceof TextInformationFrame) {
-          final TextInformationFrame f = (TextInformationFrame) entry; // handles TIT2/TPE1/TXXX etc.
-          final String id = f.id != null ? f.id.toUpperCase() : "";
-          final String value = f.value; // deprecated getter in newer Media3 but still present
-    
-          if ("TIT2".equals(id) && value != null) {
-            metadataEventChannel.success(mapOf(
-                "type", "id3",
-                "id", "TIT2",
-                "value", value
-            ));
-          } else if ("TPE1".equals(id) && value != null) {
-            metadataEventChannel.success(mapOf(
-                "type", "id3",
-                "id", "TPE1",
-                "value", value
-            ));
-          } else if ("TXXX".equals(id) && value != null) {
-            // In Media3, TXXX arrives as TextInformationFrame with id="TXXX" and a description
-            final String desc = f.description != null ? f.description : "";
-            metadataEventChannel.success(mapOf(
-                "type", "id3-txxx",
-                "description", desc,
-                "value", value
-            ));
-          }
+        /  // Forward timed metadata (ID3 / emsg) -> main thread
+  try {
+    for (int i = 0; i < metadata.length(); i++) {
+      final Metadata.Entry entry = metadata.get(i);
+
+      if (entry instanceof TextInformationFrame) {
+        final TextInformationFrame f = (TextInformationFrame) entry;
+        final String id = f.id != null ? f.id.toUpperCase() : "";
+        @SuppressWarnings("deprecation")
+        final String value = f.value;
+
+        if ("TIT2".equals(id) && value != null) {
+          emitTimedMetadata(mapOf("type","id3","id","TIT2","value", value));
+        } else if ("TPE1".equals(id) && value != null) {
+          emitTimedMetadata(mapOf("type","id3","id","TPE1","value", value));
+        } else if ("TXXX".equals(id) && value != null) {
+          final String desc = f.description != null ? f.description : "";
+          emitTimedMetadata(mapOf("type","id3-txxx","description", desc,"value", value));
         }
-        // Optional: keep PRIV if you want
-        else if (entry instanceof PrivFrame) {
-          final PrivFrame f = (PrivFrame) entry;
-          metadataEventChannel.success(mapOf(
-              "type", "id3-priv",
-              "owner", f.owner
-          ));
-        }
-        // Optional: DASH emsg – only if you add the dash dependency below
-        else if (entry instanceof EventMessage) {
-          final EventMessage f = (EventMessage) entry;
-          metadataEventChannel.success(mapOf(
-              "type", "emsg",
-              "scheme", f.schemeIdUri,
-              "value", f.value
-          ));
-        }
+      } else if (entry instanceof PrivFrame) {
+        final PrivFrame f = (PrivFrame) entry;
+        emitTimedMetadata(mapOf("type","id3-priv","owner", f.owner));
+      } else if (entry instanceof EventMessage) {
+        final EventMessage f = (EventMessage) entry;
+        emitTimedMetadata(mapOf("type","emsg","scheme", f.schemeIdUri,"value", f.value));
       }
+    }
+  } catch (Exception e) {
+    Log.e(TAG, "onMetadata processing failed", e);
+  }
     }
 
     @Override
