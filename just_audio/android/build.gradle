@@ -53,4 +53,6 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-dash:$exoplayer_version"
     implementation "androidx.media3:media3-exoplayer-hls:$exoplayer_version"
     implementation "androidx.media3:media3-exoplayer-smoothstreaming:$exoplayer_version"
+    implementation "androidx.media3:media3-exoplayer-dash:$exoplayer_version"
+    implementation "androidx.media3:media3-extractor:$exoplayer_version" 
 }
