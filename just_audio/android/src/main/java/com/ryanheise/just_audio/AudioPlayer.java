@@ -269,7 +269,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
             }
         }
 
-        /  // Forward timed metadata (ID3 / emsg) -> main thread
   try {
     for (int i = 0; i < metadata.length(); i++) {
       final Metadata.Entry entry = metadata.get(i);
