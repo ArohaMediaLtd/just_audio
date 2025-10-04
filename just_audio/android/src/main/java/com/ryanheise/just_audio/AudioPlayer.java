@@ -445,32 +445,34 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
     }
 
     @Override
-    public void onPlayerError(PlaybackException error) {
-        if (error instanceof ExoPlaybackException) {
-            final ExoPlaybackException exoError = (ExoPlaybackException)error;
-            switch (exoError.type) {
-            case ExoPlaybackException.TYPE_SOURCE:
-                Log.e(TAG, "TYPE_SOURCE: " + exoError.getSourceException().getMessage());
-                break;
+public void onPlayerError(PlaybackException error) {
+  if (error instanceof ExoPlaybackException) {
+    final ExoPlaybackException exo = (ExoPlaybackException) error;
+    switch (exo.type) {
+      case ExoPlaybackException.TYPE_SOURCE:
+        Log.e(TAG, "TYPE_SOURCE", exo.getSourceException());
+        break;
 
-            case ExoPlaybackException.TYPE_RENDERER:
-                Log.e(TAG, "TYPE_RENDERER: " + exoError.getRendererException().getMessage());
-                break;
+      case ExoPlaybackException.TYPE_RENDERER:
+        Log.e(TAG, "TYPE_RENDERER", exo.getRendererException());
+        break;
 
-            case ExoPlaybackException.TYPE_UNEXPECTED:
-                Log.e(TAG, "TYPE_UNEXPECTED: " + exoError.getUnexpectedException().getMessage());
-                break;
+      case ExoPlaybackException.TYPE_UNEXPECTED:
+        Log.e(TAG, "TYPE_UNEXPECTED", exo.getUnexpectedException()); // <-- full stacktrace
+        break;
 
-            default:
-                Log.e(TAG, "default ExoPlaybackException: " + exoError.getUnexpectedException().getMessage());
-            }
-            // TODO: send both errorCode and type
-            sendError(exoError.type, exoError.getMessage(), mapOf("index", currentIndex));
-        } else {
-            Log.e(TAG, "default PlaybackException: " + error.getMessage());
-            sendError(error.errorCode, error.getMessage(), mapOf("index", currentIndex));
-        }
+      default:
+        Log.e(TAG, "TYPE_OTHER", exo);
+        break;
     }
+    // You can still forward a code to Dart if you want:
+    sendError(exo.type, exo.getMessage(), mapOf("index", currentIndex));
+  } else {
+    Log.e(TAG, "PlaybackException", error); // full stack for non-Exo exceptions
+    sendError(error.errorCode, error.getMessage(), mapOf("index", currentIndex));
+  }
+}
+
 
     private void completeSeek() {
         seekPos = null;
