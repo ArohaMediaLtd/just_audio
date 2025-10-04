@@ -31,13 +31,14 @@ import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RenderersFactory;
 import androidx.media3.extractor.DefaultExtractorsFactory;
 import androidx.media3.common.Metadata;
-import androidx.media3.exoplayer.metadata.MetadataOutput;
+//import androidx.media3.exoplayer.metadata.MetadataOutput;
 import androidx.media3.extractor.metadata.icy.IcyHeaders;
 import androidx.media3.extractor.metadata.icy.IcyInfo;
 
 import androidx.media3.extractor.metadata.id3.TextInformationFrame;
 import androidx.media3.extractor.metadata.id3.TxxxFrame;
 import androidx.media3.extractor.metadata.id3.PrivFrame;
+import androidx.media3.extractor.metadata.emsg.EventMessage;
 
 import androidx.media3.exoplayer.source.ClippingMediaSource; // Deprecated
 // For some reason, this import triggers the [deprecation] warning, despite the
@@ -75,7 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-public class AudioPlayer implements MethodCallHandler, Player.Listener, MetadataOutput {
+public class AudioPlayer implements MethodCallHandler, Player.Listener /*, MetadataOutput */ {
     public static final int ERROR_ABORT = 10000000;
 
     static final String TAG = "AudioPlayer";
@@ -843,7 +844,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             );
             setAudioSessionId(player.getAudioSessionId());
             player.addListener(this);
-            player.addMetadataOutput(this);
+            //player.addMetadataOutput(this);
         }
     }
 
