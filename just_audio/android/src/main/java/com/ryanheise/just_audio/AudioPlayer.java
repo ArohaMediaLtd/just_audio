@@ -31,12 +31,10 @@ import androidx.media3.exoplayer.Renderer;
 import androidx.media3.exoplayer.RenderersFactory;
 import androidx.media3.extractor.DefaultExtractorsFactory;
 import androidx.media3.common.Metadata;
-//import androidx.media3.exoplayer.metadata.MetadataOutput;
 import androidx.media3.extractor.metadata.icy.IcyHeaders;
 import androidx.media3.extractor.metadata.icy.IcyInfo;
 
 import androidx.media3.extractor.metadata.id3.TextInformationFrame;
-import androidx.media3.extractor.metadata.id3.TxxxFrame;
 import androidx.media3.extractor.metadata.id3.PrivFrame;
 import androidx.media3.extractor.metadata.emsg.EventMessage;
 
@@ -76,7 +74,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-public class AudioPlayer implements MethodCallHandler, Player.Listener /*, MetadataOutput */ {
+public class AudioPlayer implements MethodCallHandler, Player.Listener {
     public static final int ERROR_ABORT = 10000000;
 
     static final String TAG = "AudioPlayer";
@@ -262,38 +260,53 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener /*, Metad
 
         // NEW: forward timed metadata (ID3 / emsg) to Dart
         for (int i = 0; i < metadata.length(); i++) {
-            final Metadata.Entry e = metadata.get(i);
+        final Metadata.Entry entry = metadata.get(i);
     
-            if (e instanceof TextInformationFrame) {
-                final TextInformationFrame f = (TextInformationFrame) e; // e.g., TIT2 (title), TPE1 (artist)
-                metadataEventChannel.success(mapOf(
-                    "type", "id3",
-                    "id",   f.id,
-                    "value", f.value
-                ));
-            } else if (e instanceof TxxxFrame) {
-                final TxxxFrame f = (TxxxFrame) e; // often "StreamTitle"
-                metadataEventChannel.success(mapOf(
-                    "type", "id3-txxx",
-                    "description", f.description,
-                    "value", f.value
-                ));
-            } else if (e instanceof PrivFrame) {
-                final PrivFrame f = (PrivFrame) e;
-                // You can surface PRIV as needed; often not required
-                metadataEventChannel.success(mapOf(
-                    "type", "id3-priv",
-                    "owner", f.owner
-                ));
-            } else if (e instanceof EventMessage) {
-                final EventMessage f = (EventMessage) e; // DASH emsg
-                metadataEventChannel.success(mapOf(
-                    "type", "emsg",
-                    "scheme", f.schemeIdUri,
-                    "value", f.value
-                ));
-            }
+        if (entry instanceof TextInformationFrame) {
+          final TextInformationFrame f = (TextInformationFrame) entry; // handles TIT2/TPE1/TXXX etc.
+          final String id = f.id != null ? f.id.toUpperCase() : "";
+          final String value = f.value; // deprecated getter in newer Media3 but still present
+    
+          if ("TIT2".equals(id) && value != null) {
+            metadataEventChannel.success(mapOf(
+                "type", "id3",
+                "id", "TIT2",
+                "value", value
+            ));
+          } else if ("TPE1".equals(id) && value != null) {
+            metadataEventChannel.success(mapOf(
+                "type", "id3",
+                "id", "TPE1",
+                "value", value
+            ));
+          } else if ("TXXX".equals(id) && value != null) {
+            // In Media3, TXXX arrives as TextInformationFrame with id="TXXX" and a description
+            final String desc = f.description != null ? f.description : "";
+            metadataEventChannel.success(mapOf(
+                "type", "id3-txxx",
+                "description", desc,
+                "value", value
+            ));
+          }
         }
+        // Optional: keep PRIV if you want
+        else if (entry instanceof PrivFrame) {
+          final PrivFrame f = (PrivFrame) entry;
+          metadataEventChannel.success(mapOf(
+              "type", "id3-priv",
+              "owner", f.owner
+          ));
+        }
+        // Optional: DASH emsg – only if you add the dash dependency below
+        else if (entry instanceof EventMessage) {
+          final EventMessage f = (EventMessage) entry;
+          metadataEventChannel.success(mapOf(
+              "type", "emsg",
+              "scheme", f.schemeIdUri,
+              "value", f.value
+          ));
+        }
+      }
     }
 
     @Override
@@ -844,7 +857,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener /*, Metad
             );
             setAudioSessionId(player.getAudioSessionId());
             player.addListener(this);
-            //player.addMetadataOutput(this);
         }
     }
 
