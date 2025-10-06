@@ -255,6 +255,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                     @SuppressWarnings("deprecation")
                     final String value = f.value;
 
+					Log.d(TAG, "[TM] ID3 " + id + " = " + value);
+
                     if ("TIT2".equals(id) && value != null) {
                         emitTimedMetadata(mapOf("type","id3","id","TIT2","value", value));
                     } else if ("TPE1".equals(id) && value != null) {
