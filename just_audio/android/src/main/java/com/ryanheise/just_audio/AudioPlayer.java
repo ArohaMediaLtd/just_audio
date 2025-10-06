@@ -8,6 +8,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Base64;
+
 
 import androidx.media3.common.C;
 import androidx.media3.common.AudioAttributes;
@@ -49,6 +51,8 @@ import androidx.media3.extractor.metadata.icy.IcyInfo;
 import androidx.media3.extractor.metadata.id3.PrivFrame;
 import androidx.media3.extractor.metadata.id3.TextInformationFrame;
 import androidx.media3.extractor.metadata.emsg.EventMessage;
+
+
 
 import io.flutter.Log;
 import io.flutter.plugin.common.BinaryMessenger;
