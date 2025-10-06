@@ -288,23 +288,39 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
     }
 
     @Override
-    public void onTracksChanged(Tracks tracks) {
-        for (int i = 0; i < tracks.getGroups().size(); i++) {
-            TrackGroup trackGroup = tracks.getGroups().get(i).getMediaTrackGroup();
-            for (int j = 0; j < trackGroup.length; j++) {
-                Metadata metadata = trackGroup.getFormat(j).metadata;
-                if (metadata != null) {
-                    for (int k = 0; k < metadata.length(); k++) {
-                        final Metadata.Entry entry = metadata.get(k);
-                        if (entry instanceof IcyHeaders) {
-                            icyHeaders = (IcyHeaders) entry;
-                            broadcastImmediatePlaybackEvent();
-                        }
-                    }
-                }
-            }
-        }
-    }
+	public void onTracksChanged(Tracks tracks) {
+	  for (int i = 0; i < tracks.getGroups().size(); i++) {
+		TrackGroup trackGroup = tracks.getGroups().get(i).getMediaTrackGroup();
+		for (int j = 0; j < trackGroup.length; j++) {
+		  Metadata metadata = trackGroup.getFormat(j).metadata;
+		  if (metadata != null) {
+			for (int k = 0; k < metadata.length(); k++) {
+			  final Metadata.Entry e = metadata.get(k);
+	
+			  if (e instanceof IcyHeaders) {
+				icyHeaders = (IcyHeaders) e;
+				broadcastImmediatePlaybackEvent();
+			  } else if (e instanceof TextInformationFrame) {
+				final TextInformationFrame f = (TextInformationFrame) e;
+				final String id = f.id != null ? f.id.toUpperCase() : "";
+				@SuppressWarnings("deprecation") final String value = f.value;
+				if (value == null) continue;
+				Log.d(TAG, "[TM] (FMT) " + id + " = " + value);
+	
+				if ("TIT2".equals(id)) {
+				  emitTimedMetadata(mapOf("type","id3","id","TIT2","value", value));
+				} else if ("TPE1".equals(id)) {
+				  emitTimedMetadata(mapOf("type","id3","id","TPE1","value", value));
+				} else if ("TXXX".equals(id)) {
+				  final String desc = f.description != null ? f.description : "";
+				  emitTimedMetadata(mapOf("type","id3-txxx","description", desc,"value", value));
+				}
+			  }
+			}
+		  }
+		}
+	  }
+	}
 
     private boolean updatePositionIfChanged() {
         if (player == null) return false;
