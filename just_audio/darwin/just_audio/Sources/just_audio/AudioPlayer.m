@@ -427,13 +427,13 @@
     // Get notified when playback stalls (currently unused)
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onItemStalled:) name:AVPlayerItemPlaybackStalledNotification object:playerItem];
 
-    AVPlayerItemMetadataOutput *metadataOutput = [[AVPlayerItemMetadataOutput alloc] initWithIdentifiers:nil];
-    [metadataOutput setDelegate:self queue:dispatch_get_main_queue()];
-    // Since the delegate is stored as a weak reference,
-    // there shouldn't be a retain cycle.
-    // TODO: Check this. Shouldn't need to removeOutput
-    // later?
-    [playerItem addOutput:metadataOutput];
+	self.timedOutput = [[AVPlayerItemMetadataOutput alloc] initWithIdentifiers:nil];
+    if (@available(iOS 13.0, *)) {
+      // deliver tags ASAP
+      self.timedOutput.advanceIntervalForDelegateInvocation = 0.0;
+    }
+    [self.timedOutput setDelegate:self queue:dispatch_get_main_queue()];
+    [playerItem addOutput:self.timedOutput];
 }
 
 - (void)metadataOutput:(AVPlayerItemMetadataOutput *)output
