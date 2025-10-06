@@ -27,6 +27,7 @@ import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlaybackException;
@@ -811,6 +812,51 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
             );
             setAudioSessionId(player.getAudioSessionId());
             player.addListener(this);
+            
+            player.addAnalyticsListener(new AnalyticsListener() {
+			  @Override public void onMetadata(EventTime eventTime, Metadata metadata) {
+				try {
+				  for (int i = 0; i < metadata.length(); i++) {
+					final Metadata.Entry e = metadata.get(i);
+			
+					if (e instanceof TextInformationFrame) {
+					  final TextInformationFrame f = (TextInformationFrame) e;
+					  final String id = f.id != null ? f.id.toUpperCase() : "";
+					  @SuppressWarnings("deprecation") final String value = f.value;
+					  // DEBUG: prove we see frames
+					  Log.d(TAG, "[TM] (AL) " + id + " = " + value);
+			
+					  if ("TIT2".equals(id) && value != null) {
+						emitTimedMetadata(mapOf("type","id3","id","TIT2","value", value));
+					  } else if ("TPE1".equals(id) && value != null) {
+						emitTimedMetadata(mapOf("type","id3","id","TPE1","value", value));
+					  } else if ("TXXX".equals(id) && value != null) {
+						final String desc = f.description != null ? f.description : "";
+						emitTimedMetadata(mapOf("type","id3-txxx","description", desc, "value", value));
+					  }
+					}
+					// OPTIONAL: forward PRIV payload; some packagers use it
+					else if (e instanceof PrivFrame) {
+					  final PrivFrame f = (PrivFrame) e;
+					  String b64 = f.privateData != null
+						  ? Base64.encodeToString(f.privateData, Base64.NO_WRAP) : "";
+					  Log.d(TAG, "[TM] (AL) PRIV owner=" + f.owner + " bytes=" + (f.privateData != null ? f.privateData.length : 0));
+					  emitTimedMetadata(mapOf("type","id3-priv","owner", f.owner, "data", b64));
+					}
+					// OPTIONAL: DASH emsg if you ever need it
+					else if (e instanceof EventMessage) {
+					  final EventMessage f = (EventMessage) e;
+					  Log.d(TAG, "[TM] (AL) emsg " + f.schemeIdUri + " " + f.value);
+					  emitTimedMetadata(mapOf("type","emsg","scheme", f.schemeIdUri,"value", f.value));
+					}
+				  }
+				} catch (Exception ex) {
+				  Log.e(TAG, "AnalyticsListener.onMetadata failed", ex);
+				}
+			  }
+			});
+            
+            
         }
     }
 
