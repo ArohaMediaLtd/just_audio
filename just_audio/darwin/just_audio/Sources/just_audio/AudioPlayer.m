@@ -14,6 +14,10 @@
 #define TREADMILL_SIZE 2
 #define ERROR_ABORT 10000000
 
+@interface AudioPlayer () <AVPlayerItemMetadataOutputPushDelegate>
+@property(nonatomic, strong) AVPlayerItemMetadataOutput *timedOutput;
+@end
+
 // TODO: Check for and report invalid state transitions.
 // TODO: Apply Apple's guidance on seeking: https://developer.apple.com/library/archive/qa/qa1820/_index.html
 @implementation AudioPlayer {
@@ -429,8 +433,7 @@
 
 	self.timedOutput = [[AVPlayerItemMetadataOutput alloc] initWithIdentifiers:nil];
     if (@available(iOS 13.0, *)) {
-      // deliver tags ASAP
-      self.timedOutput.advanceIntervalForDelegateInvocation = 0.0;
+       self.timedOutput.advanceIntervalForDelegateInvocation = 0.0; // fire ASAP
     }
     [self.timedOutput setDelegate:self queue:dispatch_get_main_queue()];
     [playerItem addOutput:self.timedOutput];
