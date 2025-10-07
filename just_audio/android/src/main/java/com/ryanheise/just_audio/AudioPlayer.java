@@ -36,6 +36,7 @@ import androidx.media3.exoplayer.ExoPlaybackException;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.LivePlaybackSpeedControl;
 import androidx.media3.exoplayer.LoadControl;
+
 import androidx.media3.exoplayer.dash.DashMediaSource; // Deprecated
 import androidx.media3.exoplayer.hls.HlsMediaSource;   // Deprecated
 import androidx.media3.exoplayer.source.ClippingMediaSource; // Deprecated
@@ -52,10 +53,17 @@ import androidx.media3.extractor.metadata.id3.PrivFrame;
 import androidx.media3.extractor.metadata.id3.TextInformationFrame;
 import androidx.media3.extractor.metadata.emsg.EventMessage;
 
+
 import androidx.media3.exoplayer.hls.HlsExtractorFactory;
+import androidx.media3.extractor.mp3.Mp3Extractor;
+import androidx.media3.common.Format;
+import androidx.media3.extractor.ExtractorOutput;
+import androidx.media3.extractor.PositionHolder;
+import androidx.media3.extractor.TimestampAdjuster;
+
+
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory;
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory;
-import androidx.media3.common.Format;
 import java.util.Collections;
 
 import android.util.Log;
@@ -210,6 +218,34 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         handler.removeCallbacks(bufferWatcher);
         handler.post(bufferWatcher);
     }
+    
+    private DefaultExtractorsFactory buildExtractorsFactory(Map<?, ?> options) {
+		DefaultExtractorsFactory extractorsFactory = new DefaultExtractorsFactory();
+		boolean constantBitrateSeekingEnabled = true;
+		boolean constantBitrateSeekingAlwaysEnabled = false;
+		int mp3Flags = 0;
+		
+		if (options != null) {
+			Map<?, ?> androidExtractorOptions = (Map<?, ?>)options.get("androidExtractorOptions");
+			if (androidExtractorOptions != null) {
+				constantBitrateSeekingEnabled = (Boolean)androidExtractorOptions.get("constantBitrateSeekingEnabled");
+				constantBitrateSeekingAlwaysEnabled = (Boolean)androidExtractorOptions.get("constantBitrateSeekingAlwaysEnabled");
+				mp3Flags = (Integer)androidExtractorOptions.get("mp3Flags");
+			}
+		}
+		
+		// CRITICAL: Ensure FLAG_DISABLE_ID3_METADATA is NOT set
+		// Remove this flag if it's present
+		mp3Flags &= ~Mp3Extractor.FLAG_DISABLE_ID3_METADATA;
+		
+		android.util.Log.d("AudioPlayer", "MP3 extractor flags: " + mp3Flags);
+		
+		extractorsFactory.setConstantBitrateSeekingEnabled(constantBitrateSeekingEnabled);
+		extractorsFactory.setConstantBitrateSeekingAlwaysEnabled(constantBitrateSeekingAlwaysEnabled);
+		extractorsFactory.setMp3ExtractorFlags(mp3Flags);
+		return extractorsFactory;
+	}
+    
 
     private void setAudioSessionId(int audioSessionId) {
         if (audioSessionId == C.AUDIO_SESSION_ID_UNSET) {
@@ -695,24 +731,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         return mediaSource;
     }
 
-    private DefaultExtractorsFactory buildExtractorsFactory(Map<?, ?> options) {
-        DefaultExtractorsFactory extractorsFactory = new DefaultExtractorsFactory();
-        boolean constantBitrateSeekingEnabled = true;
-        boolean constantBitrateSeekingAlwaysEnabled = false;
-        int mp3Flags = 0;
-        if (options != null) {
-            Map<?, ?> androidExtractorOptions = (Map<?, ?>)options.get("androidExtractorOptions");
-            if (androidExtractorOptions != null) {
-                constantBitrateSeekingEnabled = (Boolean)androidExtractorOptions.get("constantBitrateSeekingEnabled");
-                constantBitrateSeekingAlwaysEnabled = (Boolean)androidExtractorOptions.get("constantBitrateSeekingAlwaysEnabled");
-                mp3Flags = (Integer)androidExtractorOptions.get("mp3Flags");
-            }
-        }
-        extractorsFactory.setConstantBitrateSeekingEnabled(constantBitrateSeekingEnabled);
-        extractorsFactory.setConstantBitrateSeekingAlwaysEnabled(constantBitrateSeekingAlwaysEnabled);
-        extractorsFactory.setMp3ExtractorFlags(mp3Flags);
-        return extractorsFactory;
-    }
 
     @SuppressWarnings("deprecation")
     private MediaSource decodeAudioSource(final Object json) {
@@ -734,8 +752,42 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .setMimeType(MimeTypes.APPLICATION_MPD)
                         .setTag(id)
                         .build());
-            case "hls":                        
+            case "hls":
+				// Create a custom extractor factory that ensures ID3 metadata is extracted from MP3 segments
+				HlsExtractorFactory customHlsExtractorFactory = new HlsExtractorFactory() {
+					@Override
+					public Result createExtractor(
+						Uri uri,
+						Format format,
+						List<Format> muxedCaptionFormats,
+						TimestampAdjuster timestampAdjuster
+					) {
+						// For MP3 segments, use Mp3Extractor with ID3 enabled
+						if (MimeTypes.AUDIO_MPEG.equals(format.containerMimeType) || 
+							(uri != null && uri.toString().toLowerCase().endsWith(".mp3"))) {
+							
+							android.util.Log.d(TAG, "Creating MP3 extractor for: " + uri);
+							
+							// FLAG_ENABLE_INDEX_SEEKING allows seeking, but we want ID3 metadata
+							// By NOT setting FLAG_DISABLE_ID3_METADATA, ID3 is enabled by default
+							int mp3Flags = 0; // ID3 is enabled when this flag is NOT set
+							
+							return new Result(
+								new Mp3Extractor(mp3Flags),
+								false,  // isPackedAudioExtractor
+								false   // isReusable
+							);
+						}
+						
+						// For TS segments, use default behavior
+						android.util.Log.d(TAG, "Using default extractor for: " + uri);
+						return new DefaultHlsExtractorFactory(0, true)
+							.createExtractor(uri, format, muxedCaptionFormats, timestampAdjuster);
+					}
+				};
+				
 				return new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
+					.setExtractorFactory(customHlsExtractorFactory)
 					.setAllowChunklessPreparation(false)
 					.createMediaSource(new MediaItem.Builder()
 						.setUri(Uri.parse((String) map.get("uri")))
