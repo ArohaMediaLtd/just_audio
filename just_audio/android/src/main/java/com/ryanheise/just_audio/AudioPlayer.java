@@ -273,18 +273,20 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         broadcastPendingPlaybackEvent();
     }
 
+
 	private void emitTimedMetadata(final Map<String, Object> map) {
 		Log.d(TAG, "emitTimedMetadata called with: " + map);
 		Log.d(TAG, "Thread: " + Thread.currentThread().getName());
-		try { 
-			metadataEventChannel.success(map);
-			Log.d(TAG, "emitTimedMetadata SUCCESS");
+
+		  handler.post(() -> {
+			try {
+			  metadataEventChannel.success(map);
+			  Log.d(TAG, "emitTimedMetadata SUCCESS: " + map);
+			} catch (Exception e) {
+			  Log.e(TAG, "emitTimedMetadata FAILED", e);
+			}
+		  });
 		}
-		catch (Exception e) { 
-			Log.e(TAG, "emitTimedMetadata FAILED", e); 
-			e.printStackTrace();
-		}
-	}
 
     @Override
     public void onMetadata(Metadata metadata) {
@@ -755,6 +757,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .build());
 			case "hls":
 				return new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
+				    .setMetadataType(HlsMediaSource.METADATA_TYPE_ID3)
 					.setAllowChunklessPreparation(false)
 					.createMediaSource(new MediaItem.Builder()
 						.setUri(Uri.parse((String) map.get("uri")))
