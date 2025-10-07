@@ -52,6 +52,11 @@ import androidx.media3.extractor.metadata.id3.PrivFrame;
 import androidx.media3.extractor.metadata.id3.TextInformationFrame;
 import androidx.media3.extractor.metadata.emsg.EventMessage;
 
+import androidx.media3.exoplayer.source.hls.HlsExtractorFactory;
+import androidx.media3.exoplayer.source.hls.DefaultHlsExtractorFactory;
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory;
+import androidx.media3.common.Format;
+import java.util.Collections;
 
 
 import io.flutter.Log;
