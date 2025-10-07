@@ -711,7 +711,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 							  .setUri(Uri.parse((String) map.get("uri")))
 							  .setMimeType(MimeTypes.APPLICATION_M3U8)
 							  .build());
-					}
 								  
             case "silence":
                 return new SilenceMediaSource.Factory()
