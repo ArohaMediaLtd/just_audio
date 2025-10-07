@@ -172,6 +172,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         eventChannel = new BetterEventChannel(messenger, "com.ryanheise.just_audio.events." + id);
         dataEventChannel = new BetterEventChannel(messenger, "com.ryanheise.just_audio.data." + id);
         metadataEventChannel = new BetterEventChannel(messenger, "com.youradio.timed_metadata." + id);
+        
 
         processingState = ProcessingState.idle;
         if (audioLoadConfiguration != null) {
@@ -236,12 +237,18 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         broadcastPendingPlaybackEvent();
     }
 
-    private void emitTimedMetadata(final Map<String, Object> map) {
-        handler.post(() -> {
-            try { metadataEventChannel.success(map); }
-            catch (Exception e) { Log.e(TAG, "emitTimedMetadata failed", e); }
-        });
-    }
+	private void emitTimedMetadata(final Map<String, Object> map) {
+		Log.d(TAG, "emitTimedMetadata called with: " + map);
+		Log.d(TAG, "Thread: " + Thread.currentThread().getName());
+		try { 
+			metadataEventChannel.success(map);
+			Log.d(TAG, "emitTimedMetadata SUCCESS");
+		}
+		catch (Exception e) { 
+			Log.e(TAG, "emitTimedMetadata FAILED", e); 
+			e.printStackTrace();
+		}
+	}
 
     @Override
     public void onMetadata(Metadata metadata) {
@@ -846,92 +853,80 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
     }
 
     private void ensurePlayerInitialized() {
-        if (player == null) {
-            ExoPlayer.Builder builder = new ExoPlayer.Builder(context);
-            builder.setUseLazyPreparation(useLazyPreparation);
-            if (loadControl != null) builder.setLoadControl(loadControl);
-            if (livePlaybackSpeedControl != null) builder.setLivePlaybackSpeedControl(livePlaybackSpeedControl);
-            
-            player = builder.build();
+    if (player == null) {
+        Log.d(TAG, "=== INITIALIZING PLAYER ===");
         
-            
-            player.setTrackSelectionParameters(
-                player.getTrackSelectionParameters()
-                    .buildUpon()
-                    .setAudioOffloadPreferences(audioOffloadPreferences)
-                    .build()
-            );
-            
-            setAudioSessionId(player.getAudioSessionId());
-            player.addListener(this);
-            
-            handler.postDelayed(() -> {
-			  try {
-				metadataEventChannel.success(mapOf("type","test","id","PING","value","hello-android"));
-				Log.d(TAG, "[TM] test event sent");
-			  } catch (Exception e) {
-				Log.e(TAG, "test event failed", e);
-			  }
-			}, 500);
-            
-            
-            player.addAnalyticsListener(new AnalyticsListener() {
-			  @Override public void onMetadata(EventTime eventTime, Metadata metadata) {
-				
-				Log.d(TAG, "=== AnalyticsListener.onMetadata called ===");
-    Log.d(TAG, "EventTime: " + eventTime.realtimeMs + ", windowIndex: " + eventTime.windowIndex);
-    Log.d(TAG, "onMetadata called with " + metadata.length() + " entries");
-    
-    // Log each entry type
-    for (int i = 0; i < metadata.length(); i++) {
-        final Metadata.Entry e = metadata.get(i);
-        Log.d(TAG, "Metadata entry [" + i + "]: " + e.getClass().getSimpleName());
+        ExoPlayer.Builder builder = new ExoPlayer.Builder(context);
+        builder.setUseLazyPreparation(useLazyPreparation);
+        if (loadControl != null) builder.setLoadControl(loadControl);
+        if (livePlaybackSpeedControl != null) builder.setLivePlaybackSpeedControl(livePlaybackSpeedControl);
+        
+        player = builder.build();
+        
+        player.setTrackSelectionParameters(
+            player.getTrackSelectionParameters()
+                .buildUpon()
+                .setAudioOffloadPreferences(audioOffloadPreferences)
+                .build()
+        );
+        
+        setAudioSessionId(player.getAudioSessionId());
+        
+        Log.d(TAG, "Adding Player.Listener");
+        player.addListener(this);
+        
+        Log.d(TAG, "Adding AnalyticsListener");
+        player.addAnalyticsListener(new AnalyticsListener() {
+            @Override 
+            public void onMetadata(EventTime eventTime, Metadata metadata) {
+                Log.d(TAG, "=== AnalyticsListener.onMetadata FIRED ===");
+                Log.d(TAG, "Thread: " + Thread.currentThread().getName());
+                Log.d(TAG, "Metadata entries: " + metadata.length());
+                
+                for (int i = 0; i < metadata.length(); i++) {
+                    final Metadata.Entry e = metadata.get(i);
+                    Log.d(TAG, "Entry [" + i + "]: " + e.getClass().getSimpleName());
+                    
+                    if (e instanceof TextInformationFrame) {
+                        final TextInformationFrame f = (TextInformationFrame) e;
+                        final String id = f.id != null ? f.id.toUpperCase() : "";
+                        @SuppressWarnings("deprecation") 
+                        final String value = f.value;
+                        
+                        Log.d(TAG, "[TM] (AL) " + id + " = " + value);
+                        
+                        if ("TIT2".equals(id) && value != null) {
+                            Log.d(TAG, "Emitting TIT2 metadata");
+                            emitTimedMetadata(mapOf("type","id3","id","TIT2","value", value));
+                        } else if ("TPE1".equals(id) && value != null) {
+                            Log.d(TAG, "Emitting TPE1 metadata");
+                            emitTimedMetadata(mapOf("type","id3","id","TPE1","value", value));
+                        } else if ("TXXX".equals(id) && value != null) {
+                            final String desc = f.description != null ? f.description : "";
+                            Log.d(TAG, "Emitting TXXX metadata");
+                            emitTimedMetadata(mapOf("type","id3-txxx","description", desc, "value", value));
+                        }
+                    }
+                    else if (e instanceof PrivFrame) {
+                        final PrivFrame f = (PrivFrame) e;
+                        String b64 = f.privateData != null
+                            ? Base64.encodeToString(f.privateData, Base64.NO_WRAP) : "";
+                        Log.d(TAG, "[TM] (AL) PRIV owner=" + f.owner);
+                        emitTimedMetadata(mapOf("type","id3-priv","owner", f.owner, "data", b64));
+                    }
+                    else if (e instanceof EventMessage) {
+                        final EventMessage f = (EventMessage) e;
+                        Log.d(TAG, "[TM] (AL) emsg " + f.schemeIdUri);
+                        emitTimedMetadata(mapOf("type","emsg","scheme", f.schemeIdUri,"value", f.value));
+                    }
+                }
+            }
+        });
+        
+        
+        Log.d(TAG, "=== PLAYER INITIALIZATION COMPLETE ===");
     }
-    
-				try {
-				  for (int i = 0; i < metadata.length(); i++) {
-					final Metadata.Entry e = metadata.get(i);
-			
-					if (e instanceof TextInformationFrame) {
-					  final TextInformationFrame f = (TextInformationFrame) e;
-					  final String id = f.id != null ? f.id.toUpperCase() : "";
-					  @SuppressWarnings("deprecation") final String value = f.value;
-					  // DEBUG: prove we see frames
-					  Log.d(TAG, "[TM] (AL) " + id + " = " + value);
-			
-					  if ("TIT2".equals(id) && value != null) {
-						emitTimedMetadata(mapOf("type","id3","id","TIT2","value", value));
-					  } else if ("TPE1".equals(id) && value != null) {
-						emitTimedMetadata(mapOf("type","id3","id","TPE1","value", value));
-					  } else if ("TXXX".equals(id) && value != null) {
-						final String desc = f.description != null ? f.description : "";
-						emitTimedMetadata(mapOf("type","id3-txxx","description", desc, "value", value));
-					  }
-					}
-					// OPTIONAL: forward PRIV payload; some packagers use it
-					else if (e instanceof PrivFrame) {
-					  final PrivFrame f = (PrivFrame) e;
-					  String b64 = f.privateData != null
-						  ? Base64.encodeToString(f.privateData, Base64.NO_WRAP) : "";
-					  Log.d(TAG, "[TM] (AL) PRIV owner=" + f.owner + " bytes=" + (f.privateData != null ? f.privateData.length : 0));
-					  emitTimedMetadata(mapOf("type","id3-priv","owner", f.owner, "data", b64));
-					}
-					// OPTIONAL: DASH emsg if you ever need it
-					else if (e instanceof EventMessage) {
-					  final EventMessage f = (EventMessage) e;
-					  Log.d(TAG, "[TM] (AL) emsg " + f.schemeIdUri + " " + f.value);
-					  emitTimedMetadata(mapOf("type","emsg","scheme", f.schemeIdUri,"value", f.value));
-					}
-				  }
-				} catch (Exception ex) {
-				  Log.e(TAG, "AnalyticsListener.onMetadata failed", ex);
-				}
-			  }
-			});
-            
-            
-        }
-    }
+}
 
     private void setAudioAttributes(int contentType, int flags, int usage) {
         AudioAttributes.Builder builder = new AudioAttributes.Builder();
