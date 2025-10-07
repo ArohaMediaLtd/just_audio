@@ -246,7 +246,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
     @Override
     public void onMetadata(Metadata metadata) {
         
-        Log.d("[TM] onMetadata")
+        Log.d("[TM] onMetadata");
         
         // ICY (Icecast) info
         for (int i = 0; i < metadata.length(); i++) {
