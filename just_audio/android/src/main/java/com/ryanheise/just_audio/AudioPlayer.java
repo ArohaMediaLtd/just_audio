@@ -856,6 +856,16 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
             setAudioSessionId(player.getAudioSessionId());
             player.addListener(this);
             
+            handler.postDelayed(() -> {
+			  try {
+				metadataEventChannel.success(mapOf("type","test","id","PING","value","hello-android"));
+				Log.d(TAG, "[TM] test event sent");
+			  } catch (Exception e) {
+				Log.e(TAG, "test event failed", e);
+			  }
+			}, 500);
+            
+            
             player.addAnalyticsListener(new AnalyticsListener() {
 			  @Override public void onMetadata(EventTime eventTime, Metadata metadata) {
 				try {
