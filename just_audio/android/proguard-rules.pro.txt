@@ -1,0 +1,12 @@
+# Keep Media3 metadata classes for just_audio
+-keep class androidx.media3.extractor.metadata.** { *; }
+-keep class androidx.media3.exoplayer.metadata.** { *; }
+-keep class androidx.media3.common.Metadata { *; }
+-keep class androidx.media3.common.Metadata$Entry { *; }
+-keepclassmembers class androidx.media3.common.Metadata$Entry {
+    *;
+}
+
+# Keep ID3 metadata classes specifically
+-keep class androidx.media3.extractor.metadata.id3.** { *; }
+-keep class androidx.media3.extractor.metadata.icy.** { *; }
