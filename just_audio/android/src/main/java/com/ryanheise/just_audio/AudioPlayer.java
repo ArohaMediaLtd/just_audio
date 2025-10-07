@@ -305,7 +305,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
     @Override
 	public void onTracksChanged(Tracks tracks) {
 	
-		Log.d(TAG, "onTracksChanged called with " + tracks.length() + " tracks");
+		Log.d(TAG, "onTracksChanged called");
 	
 	  for (int i = 0; i < tracks.getGroups().size(); i++) {
 		TrackGroup trackGroup = tracks.getGroups().get(i).getMediaTrackGroup();
