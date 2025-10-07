@@ -754,44 +754,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .setTag(id)
                         .build());
 			case "hls":
-				// Create a custom extractor factory that ensures ID3 metadata is extracted from MP3 segments
-				HlsExtractorFactory customHlsExtractorFactory = new HlsExtractorFactory() {
-					@Override
-					public BundledHlsMediaChunkExtractor createExtractor(
-						Uri uri,
-						Format format,
-						List<Format> muxedCaptionFormats,
-						androidx.media3.extractor.TimestampAdjuster timestampAdjuster,
-						Map<String, List<String>> requestHeaders,
-						androidx.media3.extractor.ExtractorInput extractorInput,
-						androidx.media3.common.PlayerId playerId
-					) {
-						// For MP3 segments, use Mp3Extractor with ID3 enabled
-						if (MimeTypes.AUDIO_MPEG.equals(format.containerMimeType) || 
-							(uri != null && uri.toString().toLowerCase().endsWith(".mp3"))) {
-							
-							android.util.Log.d(TAG, "Creating MP3 extractor for: " + uri);
-							
-							// ID3 is enabled when FLAG_DISABLE_ID3_METADATA is NOT set
-							int mp3Flags = 0;
-							
-							return new BundledHlsMediaChunkExtractor(
-								new Mp3Extractor(mp3Flags),
-								format,
-								timestampAdjuster
-							);
-						}
-						
-						// For TS segments, use default behavior
-						android.util.Log.d(TAG, "Using default extractor for: " + uri);
-						return new DefaultHlsExtractorFactory(0, true)
-							.createExtractor(uri, format, muxedCaptionFormats, timestampAdjuster, 
-											requestHeaders, extractorInput, playerId);
-					}
-				};
-				
 				return new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
-					.setExtractorFactory(customHlsExtractorFactory)
 					.setAllowChunklessPreparation(false)
 					.createMediaSource(new MediaItem.Builder()
 						.setUri(Uri.parse((String) map.get("uri")))
