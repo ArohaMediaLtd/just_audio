@@ -58,7 +58,6 @@ import androidx.media3.extractor.mp3.Mp3Extractor;
 import androidx.media3.common.Format;
 import androidx.media3.extractor.ExtractorOutput;
 import androidx.media3.extractor.PositionHolder;
-import androidx.media3.extractor.TimestampAdjuster;
 
 
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory;
@@ -752,27 +751,29 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .setMimeType(MimeTypes.APPLICATION_MPD)
                         .setTag(id)
                         .build());
-            case "hls":
+           case "hls":
 				// Create a custom extractor factory that ensures ID3 metadata is extracted from MP3 segments
 				HlsExtractorFactory customHlsExtractorFactory = new HlsExtractorFactory() {
 					@Override
-					public Result createExtractor(
+					public androidx.media3.exoplayer.hls.HlsExtractorFactory.Result createExtractor(
 						Uri uri,
 						Format format,
 						List<Format> muxedCaptionFormats,
-						TimestampAdjuster timestampAdjuster
-					) {
+						androidx.media3.extractor.TimestampAdjuster timestampAdjuster,
+						Map<String, List<String>> requestHeaders,
+						androidx.media3.extractor.ExtractorInput extractorInput,
+						androidx.media3.common.PlayerId playerId
+					) throws IOException, InterruptedException {
 						// For MP3 segments, use Mp3Extractor with ID3 enabled
 						if (MimeTypes.AUDIO_MPEG.equals(format.containerMimeType) || 
 							(uri != null && uri.toString().toLowerCase().endsWith(".mp3"))) {
 							
 							android.util.Log.d(TAG, "Creating MP3 extractor for: " + uri);
 							
-							// FLAG_ENABLE_INDEX_SEEKING allows seeking, but we want ID3 metadata
-							// By NOT setting FLAG_DISABLE_ID3_METADATA, ID3 is enabled by default
-							int mp3Flags = 0; // ID3 is enabled when this flag is NOT set
+							// ID3 is enabled when FLAG_DISABLE_ID3_METADATA is NOT set
+							int mp3Flags = 0;
 							
-							return new Result(
+							return new androidx.media3.exoplayer.hls.HlsExtractorFactory.Result(
 								new Mp3Extractor(mp3Flags),
 								false,  // isPackedAudioExtractor
 								false   // isReusable
@@ -782,7 +783,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 						// For TS segments, use default behavior
 						android.util.Log.d(TAG, "Using default extractor for: " + uri);
 						return new DefaultHlsExtractorFactory(0, true)
-							.createExtractor(uri, format, muxedCaptionFormats, timestampAdjuster);
+							.createExtractor(uri, format, muxedCaptionFormats, timestampAdjuster, 
+											requestHeaders, extractorInput, playerId);
 					}
 				};
 				
