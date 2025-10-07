@@ -10,6 +10,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 
+import androidx.media3.exoplayer.hls.BundledHlsMediaChunkExtractor;
 import androidx.media3.extractor.ExtractorInput;
 import androidx.media3.common.C;
 import androidx.media3.common.AudioAttributes;
@@ -756,12 +757,14 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 				// Create a custom extractor factory that ensures ID3 metadata is extracted from MP3 segments
 				HlsExtractorFactory customHlsExtractorFactory = new HlsExtractorFactory() {
 					@Override
-					public androidx.media3.exoplayer.hls.HlsMediaSource.Factory.HlsExtractorFactory.Result createExtractor(
+					public BundledHlsMediaChunkExtractor createExtractor(
 						Uri uri,
 						Format format,
 						List<Format> muxedCaptionFormats,
+						androidx.media3.extractor.TimestampAdjuster timestampAdjuster,
 						Map<String, List<String>> requestHeaders,
-						androidx.media3.extractor.ExtractorInput extractorInput
+						androidx.media3.extractor.ExtractorInput extractorInput,
+						androidx.media3.common.PlayerId playerId
 					) {
 						// For MP3 segments, use Mp3Extractor with ID3 enabled
 						if (MimeTypes.AUDIO_MPEG.equals(format.containerMimeType) || 
@@ -772,17 +775,18 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 							// ID3 is enabled when FLAG_DISABLE_ID3_METADATA is NOT set
 							int mp3Flags = 0;
 							
-							return new androidx.media3.exoplayer.hls.HlsMediaSource.Factory.HlsExtractorFactory.Result(
+							return new BundledHlsMediaChunkExtractor(
 								new Mp3Extractor(mp3Flags),
-								false,  // isPackedAudioExtractor
-								false   // isReusable
+								format,
+								timestampAdjuster
 							);
 						}
 						
 						// For TS segments, use default behavior
 						android.util.Log.d(TAG, "Using default extractor for: " + uri);
 						return new DefaultHlsExtractorFactory(0, true)
-							.createExtractor(uri, format, muxedCaptionFormats, requestHeaders, extractorInput);
+							.createExtractor(uri, format, muxedCaptionFormats, timestampAdjuster, 
+											requestHeaders, extractorInput, playerId);
 					}
 				};
 				
