@@ -246,6 +246,15 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
     @Override
     public void onMetadata(Metadata metadata) {
         
+        Log.d(TAG, "=== Player.Listener.onMetadata called ===");
+        Log.d(TAG, "onMetadata called with " + metadata.length() + " items");
+    
+        for (int i = 0; i < metadata.length(); i++) {
+        	final Metadata.Entry entry = metadata.get(i);
+     	   	Log.d(TAG, "Metadata entry [" + i + "]: " + entry.getClass().getSimpleName());
+    	}	
+        
+        
         // ICY (Icecast) info
         for (int i = 0; i < metadata.length(); i++) {
             final Metadata.Entry entry = metadata.get(i);
@@ -295,6 +304,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 
     @Override
 	public void onTracksChanged(Tracks tracks) {
+	
+		Log.d(TAG, "onTracksChanged called with " + tracks.length() + " tracks");
+	
 	  for (int i = 0; i < tracks.getGroups().size(); i++) {
 		TrackGroup trackGroup = tracks.getGroups().get(i).getMediaTrackGroup();
 		for (int j = 0; j < trackGroup.length; j++) {
@@ -700,17 +712,19 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .setTag(id)
                         .build());
             case "hls":                        
-					// Use the 2-arg ctor your Media3 version supports
+
 					  HlsExtractorFactory hlsExtractorFactory = new DefaultHlsExtractorFactory(
-						  /* payloadReaderFactoryFlags = */ DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM,
-						  /* exposeCea608WhenMissingDeclarations = */ false
-					  );
-					
+						/* payloadReaderFactoryFlags = */ 0,  // Try with no flags first
+						/* exposeCea608WhenMissingDeclarations = */ true
+					);
+											
 					  return new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
 						  .setExtractorFactory(hlsExtractorFactory)
+						  .setAllowChunklessPreparation(false)
 						  .createMediaSource(new MediaItem.Builder()
 							  .setUri(Uri.parse((String) map.get("uri")))
 							  .setMimeType(MimeTypes.APPLICATION_M3U8)
+							  .setTag(id)
 							  .build());
 								  
             case "silence":
@@ -839,15 +853,12 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
             if (livePlaybackSpeedControl != null) builder.setLivePlaybackSpeedControl(livePlaybackSpeedControl);
             
             player = builder.build();
-            
-            AudioOffloadPreferences noOffload = new AudioOffloadPreferences.Builder()
-				.setAudioOffloadMode(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED)
-				.build();
+        
             
             player.setTrackSelectionParameters(
                 player.getTrackSelectionParameters()
                     .buildUpon()
-                    .setAudioOffloadPreferences(noOffload)
+                    .setAudioOffloadPreferences(audioOffloadPreferences)
                     .build()
             );
             
@@ -866,6 +877,17 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
             
             player.addAnalyticsListener(new AnalyticsListener() {
 			  @Override public void onMetadata(EventTime eventTime, Metadata metadata) {
+				
+				Log.d(TAG, "=== AnalyticsListener.onMetadata called ===");
+    Log.d(TAG, "EventTime: " + eventTime.realtimeMs + ", windowIndex: " + eventTime.windowIndex);
+    Log.d(TAG, "onMetadata called with " + metadata.length() + " entries");
+    
+    // Log each entry type
+    for (int i = 0; i < metadata.length(); i++) {
+        final Metadata.Entry e = metadata.get(i);
+        Log.d(TAG, "Metadata entry [" + i + "]: " + e.getClass().getSimpleName());
+    }
+    
 				try {
 				  for (int i = 0; i < metadata.length(); i++) {
 					final Metadata.Entry e = metadata.get(i);
