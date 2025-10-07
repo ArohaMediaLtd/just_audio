@@ -245,6 +245,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 
     @Override
     public void onMetadata(Metadata metadata) {
+        
+        Log.d("[TM] onMetadata")
+        
         // ICY (Icecast) info
         for (int i = 0; i < metadata.length(); i++) {
             final Metadata.Entry entry = metadata.get(i);
@@ -836,13 +839,20 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
             builder.setUseLazyPreparation(useLazyPreparation);
             if (loadControl != null) builder.setLoadControl(loadControl);
             if (livePlaybackSpeedControl != null) builder.setLivePlaybackSpeedControl(livePlaybackSpeedControl);
+            
             player = builder.build();
+            
+            AudioOffloadPreferences noOffload = new AudioOffloadPreferences.Builder()
+				.setAudioOffloadMode(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED)
+				.build();
+            
             player.setTrackSelectionParameters(
                 player.getTrackSelectionParameters()
                     .buildUpon()
-                    .setAudioOffloadPreferences(audioOffloadPreferences)
+                    .setAudioOffloadPreferences(noOffload)
                     .build()
             );
+            
             setAudioSessionId(player.getAudioSessionId());
             player.addListener(this);
             
