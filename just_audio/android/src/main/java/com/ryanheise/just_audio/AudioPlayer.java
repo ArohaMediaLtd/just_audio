@@ -252,8 +252,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
     @Override
     public void onMetadata(Metadata metadata) {
         
-        Log.d(TAG, "=== Player.Listener.onMetadata called ===");
-        Log.d(TAG, "onMetadata called with " + metadata.length() + " items");
+        android.util.Log.wtf(TAG, "🎵🎵🎵 Player.Listener.onMetadata FIRED!!! 🎵🎵🎵");
+        android.util.Log.d(TAG, "onMetadata called with " + metadata.length() + " items");
+    
     
         for (int i = 0; i < metadata.length(); i++) {
         	final Metadata.Entry entry = metadata.get(i);
@@ -308,7 +309,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         }
     }
 
-    @Override
+	@Override
 	public void onTracksChanged(Tracks tracks) {
 		android.util.Log.d(TAG, "=== onTracksChanged called ===");
 		android.util.Log.d(TAG, "Number of track groups: " + tracks.getGroups().size());
@@ -325,17 +326,23 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 				if (metadata != null) {
 					for (int k = 0; k < metadata.length(); k++) {
 						final Metadata.Entry e = metadata.get(k);
-						android.util.Log.d(TAG, "    Metadata entry: " + e.getClass().getSimpleName());
+						// Use getName() instead of getSimpleName() to avoid obfuscation issues
+						android.util.Log.d(TAG, "    Metadata entry FULL class: " + e.getClass().getName());
+						android.util.Log.d(TAG, "    Metadata entry toString: " + e.toString());
 						
+						// Check all possible types
 						if (e instanceof IcyHeaders) {
+							android.util.Log.d(TAG, "    -> This is IcyHeaders");
 							icyHeaders = (IcyHeaders) e;
 							broadcastImmediatePlaybackEvent();
 						} else if (e instanceof TextInformationFrame) {
+							android.util.Log.d(TAG, "    -> This is TextInformationFrame");
 							final TextInformationFrame f = (TextInformationFrame) e;
 							final String id = f.id != null ? f.id.toUpperCase() : "";
 							@SuppressWarnings("deprecation") final String value = f.value;
+							android.util.Log.d(TAG, "    -> ID3 tag: " + id + " = " + value);
+							
 							if (value == null) continue;
-							android.util.Log.d(TAG, "[TM] (FMT) " + id + " = " + value);
 							
 							if ("TIT2".equals(id)) {
 								emitTimedMetadata(mapOf("type","id3","id","TIT2","value", value));
@@ -345,6 +352,10 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 								final String desc = f.description != null ? f.description : "";
 								emitTimedMetadata(mapOf("type","id3-txxx","description", desc,"value", value));
 							}
+						} else if (e instanceof PrivFrame) {
+							android.util.Log.d(TAG, "    -> This is PrivFrame");
+						} else {
+							android.util.Log.d(TAG, "    -> Unknown metadata type");
 						}
 					}
 				}
@@ -877,9 +888,11 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         player.addAnalyticsListener(new AnalyticsListener() {
             @Override 
             public void onMetadata(EventTime eventTime, Metadata metadata) {
-                Log.d(TAG, "=== AnalyticsListener.onMetadata FIRED ===");
-                Log.d(TAG, "Thread: " + Thread.currentThread().getName());
-                Log.d(TAG, "Metadata entries: " + metadata.length());
+            
+            android.util.Log.wtf(TAG, "🎵🎵🎵 AnalyticsListener.onMetadata FIRED!!! 🎵🎵🎵");
+        	android.util.Log.d(TAG, "Thread: " + Thread.currentThread().getName());
+        	android.util.Log.d(TAG, "Metadata entries: " + metadata.length());
+            
                 
                 for (int i = 0; i < metadata.length(); i++) {
                     final Metadata.Entry e = metadata.get(i);
