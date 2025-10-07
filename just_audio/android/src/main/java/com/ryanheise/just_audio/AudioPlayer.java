@@ -58,8 +58,7 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory;
 import androidx.media3.common.Format;
 import java.util.Collections;
 
-
-import io.flutter.Log;
+import android.util.Log;
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
