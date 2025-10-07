@@ -699,19 +699,19 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .setTag(id)
                         .build());
             case "hls":                        
-					HlsExtractorFactory hlsExtractorFactory = new DefaultHlsExtractorFactory(
-					  /* payloadReaderFactoryFlags = */ DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM,
-					  /* mp3Flags = */ 0, // 🔑 DO NOT disable ID3
-					  /* exposeCea608WhenMissingDeclarations = */ false,
-					  /* muxedCaptionFormats = */ Collections.<Format>emptyList()
-				  );
-				
-				  return new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
-					  .setExtractorFactory(hlsExtractorFactory)
-					  .createMediaSource(new MediaItem.Builder()
-						  .setUri(Uri.parse((String) map.get("uri")))
-						  .setMimeType(MimeTypes.APPLICATION_M3U8)
-						  .build());
+					// Use the 2-arg ctor your Media3 version supports
+					  HlsExtractorFactory hlsExtractorFactory = new DefaultHlsExtractorFactory(
+						  /* payloadReaderFactoryFlags = */ DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM,
+						  /* exposeCea608WhenMissingDeclarations = */ false
+					  );
+					
+					  return new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
+						  .setExtractorFactory(hlsExtractorFactory)
+						  .createMediaSource(new MediaItem.Builder()
+							  .setUri(Uri.parse((String) map.get("uri")))
+							  .setMimeType(MimeTypes.APPLICATION_M3U8)
+							  .build());
+					}
 								  
             case "silence":
                 return new SilenceMediaSource.Factory()
