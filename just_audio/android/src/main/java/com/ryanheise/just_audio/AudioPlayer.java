@@ -724,20 +724,13 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .setTag(id)
                         .build());
             case "hls":                        
-
-					  HlsExtractorFactory hlsExtractorFactory = new DefaultHlsExtractorFactory(
-						/* payloadReaderFactoryFlags = */ 0,  // Try with no flags first
-						/* exposeCea608WhenMissingDeclarations = */ true
-					);
-											
-					  return new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
-						  .setExtractorFactory(hlsExtractorFactory)
-						  .setAllowChunklessPreparation(false)
-						  .createMediaSource(new MediaItem.Builder()
-							  .setUri(Uri.parse((String) map.get("uri")))
-							  .setMimeType(MimeTypes.APPLICATION_M3U8)
-							  .setTag(id)
-							  .build());
+				return new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
+					.setAllowChunklessPreparation(false)
+					.createMediaSource(new MediaItem.Builder()
+						.setUri(Uri.parse((String) map.get("uri")))
+						.setMimeType(MimeTypes.APPLICATION_M3U8)
+						.setTag(id)
+						.build());
 								  
             case "silence":
                 return new SilenceMediaSource.Factory()
