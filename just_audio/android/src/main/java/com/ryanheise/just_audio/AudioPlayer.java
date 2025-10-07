@@ -10,7 +10,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 
-
 import androidx.media3.common.C;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.MediaItem;
@@ -81,6 +80,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.io.IOException;
 
 public class AudioPlayer implements MethodCallHandler, Player.Listener {
     public static final int ERROR_ABORT = 10000000;
