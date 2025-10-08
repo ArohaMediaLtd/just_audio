@@ -919,6 +919,28 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
         Log.d(TAG, "Adding Player.Listener");
         player.addListener(this);
         
+        player.addListener(new Player.Listener() {
+		  @Override
+		  public void onMediaMetadataChanged(MediaMetadata mediaMetadata) {
+            Log.d(TAG, "Adding onMediaMetadataChanged Listener");
+
+			if (mediaMetadata == null) return;
+			final CharSequence title = mediaMetadata.title;
+			final CharSequence artist = mediaMetadata.artist;
+			Log.d(TAG, "[TM] (MM) title=" + title + " artist=" + artist);
+			if ((title != null && title.length() > 0) || (artist != null && artist.length() > 0)) {
+			  if (title != null && artist != null) {
+				emitTimedMetadata(mapOf("type","id3","id","TIT2","value", artist + " - " + title));
+				emitTimedMetadata(mapOf("type","id3","id","TPE1","value", artist.toString()));
+			  } else if (title != null) {
+				emitTimedMetadata(mapOf("type","id3","id","TIT2","value", title.toString()));
+			  } else if (artist != null) {
+				emitTimedMetadata(mapOf("type","id3","id","TPE1","value", artist.toString()));
+			  }
+			}
+		  }
+		});
+        
         Log.d(TAG, "Adding AnalyticsListener");
         player.addAnalyticsListener(new AnalyticsListener() {
             @Override 
