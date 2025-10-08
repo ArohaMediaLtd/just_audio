@@ -758,19 +758,19 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .build());
 
 			case "hls": {
-			  HlsMediaSource.Factory factory =
-				  new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
-					  .setExtractorFactory(new Id3SniffingHlsExtractorFactory())
-					  .setAllowChunklessPreparation(false)
-					  .setMetadataType(HlsMediaSource.METADATA_TYPE_ID3);
-			
-			  return factory.createMediaSource(new MediaItem.Builder()
-				  .setUri(Uri.parse((String) map.get("uri")))
-				  .setMimeType(MimeTypes.APPLICATION_M3U8)
-				  .setTag(id)
-				  .build());
-			}
-								  
+				  HlsMediaSource.Factory factory =
+					  new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
+						  .setExtractorFactory(new Id3SniffingHlsExtractorFactory())
+						  .setAllowChunklessPreparation(false)
+						  .setMetadataType(HlsMediaSource.METADATA_TYPE_ID3); // ask for ID3 timed metadata
+				
+				  return factory.createMediaSource(new MediaItem.Builder()
+					  .setUri(Uri.parse((String) map.get("uri")))
+					  .setMimeType(MimeTypes.APPLICATION_M3U8)
+					  .setTag(id)
+					  .build());
+				}
+												  
             case "silence":
                 return new SilenceMediaSource.Factory()
                     .setDurationUs(getLong(map.get("duration")))
