@@ -14,6 +14,7 @@ import androidx.media3.exoplayer.hls.BundledHlsMediaChunkExtractor;
 import androidx.media3.extractor.ExtractorInput;
 import androidx.media3.common.C;
 import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Metadata;
 import androidx.media3.common.MimeTypes;
