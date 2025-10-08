@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class Id3SniffingHlsExtractorFactory implements HlsExtractorFactory {
+
+  private static final String TAG = "AudioPlayer";
   private final DefaultHlsExtractorFactory delegate = new DefaultHlsExtractorFactory();
 
   @Override
@@ -28,14 +30,25 @@ public final class Id3SniffingHlsExtractorFactory implements HlsExtractorFactory
       ExtractorInput extractorInput,
       PlayerId playerId
   ) throws IOException {
-    HlsMediaChunkExtractor base = delegate.createExtractor(
+
+    final HlsMediaChunkExtractor base = delegate.createExtractor(
         uri, format, muxedAudioFormats, timestampAdjuster, responseHeaders, extractorInput, playerId);
+
+    // Debug: prove this code path runs and what mime we saw
+    android.util.Log.d(TAG, "[HLS-FX] createExtractor mime=" + format.sampleMimeType + " uri=" + uri);
 
     if ("audio/mpeg".equals(format.sampleMimeType)
         && base instanceof BundledHlsMediaChunkExtractor) {
+
+      android.util.Log.d(TAG, "[HLS-FX] swapping to Id3SniffingMp3Extractor for MP3 HLS");
       return new BundledHlsMediaChunkExtractor(
-          new Id3SniffingMp3Extractor(), format, timestampAdjuster);
+          new Id3SniffingMp3Extractor(),  // our sniffer
+          format,
+          timestampAdjuster
+      );
     }
+
+    android.util.Log.d(TAG, "[HLS-FX] using default extractor");
     return base;
   }
 }

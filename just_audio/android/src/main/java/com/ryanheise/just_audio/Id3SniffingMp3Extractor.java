@@ -5,13 +5,11 @@ import androidx.media3.common.Format;
 import androidx.media3.common.Metadata;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.util.ParsableByteArray;
-
 import androidx.media3.extractor.Extractor;
 import androidx.media3.extractor.ExtractorInput;
 import androidx.media3.extractor.ExtractorOutput;
 import androidx.media3.extractor.PositionHolder;
 import androidx.media3.extractor.TrackOutput;
-
 import androidx.media3.extractor.metadata.id3.Id3Decoder;
 import androidx.media3.extractor.metadata.id3.Id3Frame;
 import androidx.media3.extractor.metadata.id3.TextInformationFrame;
@@ -20,13 +18,9 @@ import androidx.media3.extractor.mp3.Mp3Extractor;
 import java.io.EOFException;
 import java.io.IOException;
 
-/**
- * Wraps Mp3Extractor and additionally scans the fragment payload for raw ID3 tags
- * and emits them as application/id3 samples (like hls.js FRAG_PARSING_METADATA).
- *
- * Media3 1.8.0 signatures: sniff(...) & read(...) both throw IOException.
- */
 public final class Id3SniffingMp3Extractor implements Extractor {
+  private static final String TAG = "AudioPlayer";
+
   private final Mp3Extractor delegate = new Mp3Extractor();
   private TrackOutput id3Track;
   private long timeUs;
@@ -44,6 +38,7 @@ public final class Id3SniffingMp3Extractor implements Extractor {
         .setId("id3-meta")
         .setSampleMimeType(MimeTypes.APPLICATION_ID3)
         .build());
+    android.util.Log.d(TAG, "[ID3-SNIFF] init complete");
   }
 
   @Override
@@ -59,44 +54,43 @@ public final class Id3SniffingMp3Extractor implements Extractor {
 
   @Override
   public int read(ExtractorInput input, PositionHolder seekPosition) throws IOException {
-    // Lightweight scan for "ID3" in the next bytes; if found, decode & emit.
+    // Scan ahead for "ID3" anywhere in the next 256 KiB.
     try {
       input.resetPeekPosition();
       ParsableByteArray head = new ParsableByteArray(10);
       int scanned = 0;
-      final int SCAN_WINDOW = 32768; // 32 KiB per call
+      final int SCAN_WINDOW = 256 * 1024;
 
       while (scanned < SCAN_WINDOW) {
         boolean ok = input.peekFully(head.getData(), 0, 3, /*allowEndOfInput*/ true);
-        if (!ok) break; // end of input
+        if (!ok) break;
 
         byte b0 = head.getData()[0], b1 = head.getData()[1], b2 = head.getData()[2];
         if (b0 == 'I' && b1 == 'D' && b2 == '3') {
-          // Peek full 10-byte header
+          // Header: 10 bytes
           input.peekFully(head.getData(), 3, 7, /*allowEndOfInput*/ true);
 
-          // Synchsafe size (bytes 6..9)
           int size = ((head.getData()[6] & 0x7f) << 21)
                    | ((head.getData()[7] & 0x7f) << 14)
                    | ((head.getData()[8] & 0x7f) << 7)
                    |  (head.getData()[9] & 0x7f);
           int totalLen = 10 + size;
 
-          // Read the full tag
           byte[] tag = new byte[totalLen];
           input.resetPeekPosition();
           input.peekFully(tag, 0, totalLen, /*allowEndOfInput*/ true);
 
-          // Decode and emit as a metadata sample
+          // Decode and emit
           Id3Decoder decoder = new Id3Decoder();
           Metadata meta = decoder.decode(tag, /* size= */ totalLen);
           if (meta != null && meta.length() > 0) {
-            // Optional: quick debug log (value is deprecated but harmless)
+            android.util.Log.d(TAG, "[ID3-SNIFF] found ID3 tag len=" + totalLen);
             for (int i = 0; i < meta.length(); i++) {
               Id3Frame f = (Id3Frame) meta.get(i);
               if (f instanceof TextInformationFrame) {
                 TextInformationFrame tf = (TextInformationFrame) f;
-                android.util.Log.d("AudioPlayer", "[ID3-SNIFF] " + tf.id + " = " + tf.value);
+                // 'value' is deprecated, OK for debugging
+                android.util.Log.d(TAG, "[ID3-SNIFF] " + tf.id + " = " + tf.value);
               }
             }
 
@@ -111,7 +105,6 @@ public final class Id3SniffingMp3Extractor implements Extractor {
             );
           }
 
-          // Advance beyond this tag and continue scanning
           input.skipFully(totalLen);
           scanned += totalLen;
           continue;
@@ -121,10 +114,10 @@ public final class Id3SniffingMp3Extractor implements Extractor {
         }
       }
     } catch (EOFException ignore) {
-      // Delegate will handle EoF
+      // Delegate will handle end-of-input
     }
 
-    // Continue normal MP3 extraction
+    // Continue normal MP3 decoding
     return delegate.read(input, seekPosition);
   }
 }
