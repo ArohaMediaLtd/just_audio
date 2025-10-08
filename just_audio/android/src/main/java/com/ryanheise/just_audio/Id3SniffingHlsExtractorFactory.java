@@ -13,6 +13,7 @@ import androidx.media3.extractor.ExtractorInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public final class Id3SniffingHlsExtractorFactory implements HlsExtractorFactory {
@@ -31,15 +32,42 @@ public final class Id3SniffingHlsExtractorFactory implements HlsExtractorFactory
       PlayerId playerId
   ) throws IOException {
 
-    final HlsMediaChunkExtractor base = delegate.createExtractor(
-        uri, format, muxedAudioFormats, timestampAdjuster, responseHeaders, extractorInput, playerId);
-
-    // Debug: prove this code path runs and what mime we saw
+    // Always log what HLS gives us up front
     android.util.Log.d(TAG, "[HLS-FX] createExtractor mime=" + format.sampleMimeType + " uri=" + uri);
 
-    if ("audio/mpeg".equals(format.sampleMimeType)
-        && base instanceof BundledHlsMediaChunkExtractor) {
+    // Build the base extractor first
+    HlsMediaChunkExtractor base = delegate.createExtractor(
+        uri, format, muxedAudioFormats, timestampAdjuster, responseHeaders, extractorInput, playerId);
 
+    // Decide MP3 based on multiple signals (mime often null at this point)
+    boolean looksMp3 = false;
+
+    // 1) URI extension
+    final String path = uri.getPath();
+    if (path != null && path.toLowerCase(Locale.US).endsWith(".mp3")) {
+      looksMp3 = true;
+    }
+
+    // 2) Early sample mime if present
+    if ("audio/mpeg".equals(format.sampleMimeType)) {
+      looksMp3 = true;
+    }
+
+    // 3) Response headers (Content-Type can show up here)
+    if (!looksMp3 && responseHeaders != null) {
+      List<String> ct = responseHeaders.get("Content-Type");
+      if (ct == null) ct = responseHeaders.get("content-type");
+      if (ct != null) {
+        for (String v : ct) {
+          if (v != null && v.toLowerCase(Locale.US).contains("audio/mpeg")) {
+            looksMp3 = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (looksMp3 && base instanceof BundledHlsMediaChunkExtractor) {
       android.util.Log.d(TAG, "[HLS-FX] swapping to Id3SniffingMp3Extractor for MP3 HLS");
       return new BundledHlsMediaChunkExtractor(
           new Id3SniffingMp3Extractor(),  // our sniffer
