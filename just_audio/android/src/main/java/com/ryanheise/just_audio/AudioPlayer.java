@@ -758,11 +758,18 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
                         .build());
 
 			case "hls": {
+				  // base factory
+				  DataSource.Factory base = buildDataSourceFactory(mapGet(map, "headers"));
+				
+				  // wrap with ID3 sniffer; post to EventChannel on the main thread
+				  DataSource.Factory sniffing = new Id3SniffingDataSourceFactory(base, map1 -> {
+					emitTimedMetadata(map1); // your existing method posts via handler
+				  });
+				
 				  HlsMediaSource.Factory factory =
-					  new HlsMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
-						  .setExtractorFactory(new Id3SniffingHlsExtractorFactory())
+					  new HlsMediaSource.Factory(sniffing)            // ← use sniffing factory here
 						  .setAllowChunklessPreparation(false)
-						  .setMetadataType(HlsMediaSource.METADATA_TYPE_ID3); // ask for ID3 timed metadata
+						  .setMetadataType(HlsMediaSource.METADATA_TYPE_ID3);
 				
 				  return factory.createMediaSource(new MediaItem.Builder()
 					  .setUri(Uri.parse((String) map.get("uri")))
@@ -770,6 +777,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener {
 					  .setTag(id)
 					  .build());
 				}
+
 												  
             case "silence":
                 return new SilenceMediaSource.Factory()
